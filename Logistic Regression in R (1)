@@ -1,3 +1,5 @@
+#We will try to predict heart disease using only the gender of each patient
+
 #read the dataset into R from the URL
 url<-"https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data"
 data<-read.csv(url,header=FALSE)

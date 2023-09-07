@@ -1,0 +1,220 @@
+#read the dataset into R from the URL
+url<-"https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data"
+data<-read.csv(url,header=FALSE)
+
+#head()shows us the first 6 rows of data
+head(data)
+
+#We name the columns after the names that were listed on the UCI website
+colnames(data) <- c(
+  "age",
+  "sex",# 0 = female, 1 = male
+  "cp", # chest pain
+  # 1 = typical angina,
+  # 2 = atypical angina,
+  # 3 = non-anginal pain,
+  # 4 = asymptomatic
+  "trestbps", # resting blood pressure (in mm Hg)
+  "chol", # serum cholestoral in mg/dl
+  "fbs",  # fasting blood sugar if less than 120 mg/dl, 1 = TRUE, 0 = FALSE
+  "restecg", # resting electrocardiographic results
+  # 1 = normal
+  # 2 = having ST-T wave abnormality
+  # 3 = showing probable or definite left ventricular hypertrophy
+  "thalach", # maximum heart rate achieved
+  "exang",   # exercise induced angina, 1 = yes, 0 = no
+  "oldpeak", # ST depression induced by exercise relative to rest
+  "slope", # the slope of the peak exercise ST segment
+  # 1 = upsloping
+  # 2 = flat
+  # 3 = downsloping
+  "ca", # number of major vessels (0-3) colored by fluoroscopy
+  "thal", # this is short of thalium heart scan
+  # 3 = normal (no cold spots)
+  # 6 = fixed defect (cold spots during rest and exercise)
+  # 7 = reversible defect (when cold spots only appear during exercise)
+  "hd" # (the predicted attribute) - diagnosis of heart disease
+  # 0 if less than or equal to 50% diameter narrowing
+  # 1 if greater than 50% diameter narrowing
+)
+
+head(data)
+
+#the str()function, which describes the structure of the data, tells  us that some of the columns are messed up
+str(data)
+#sex is a number, but it is supposed to be a factor, where 0 represents "female" and 1 represents "male".
+#cp (chest pain) is supposed to be a factor, where levels 1-3 represents different types of pain and 4 represents no chest pain.
+#ca and thal are correctly calles factors, but one of the levels is "?" when we need it to be NA.
+
+#change the "?" to NA
+data[data=="?"]<-NA
+
+#convert the 0s in sex to F, for female and 1s to M for male
+data$sex <- ifelse(data$sex == 0, yes="F", no="M")
+
+#Covert the column into factor
+data$sex<-as.factor(data$sex)
+
+#convert a bunch of other columns into factors since that's what they are supposed to be.
+data$cp <- as.factor(data$cp)
+data$fbs <- as.factor(data$fbs)
+data$restecg <- as.factor(data$restecg)
+data$exang <- as.factor(data$exang)
+data$slope <- as.factor(data$slope)
+
+#Since tha ca column originally had a ? in it, rather than NA, R thinks it's a columns of strings. We correct taht assumption by telling R that itis a column of integers
+data$ca<-as.integer(data$ca)
+#and then we convert it to a factor
+data$ca<-as.factor(data$ca)
+
+data$thal<-as.integer(data$thal)
+data$thal<-as.factor(data$thal)
+
+#make hd (Heart Disease)  a factor using a fancy trick with ifelese()
+data$hd<-ifelse(data$hd==0, yes="Healthy", no="Unhealthy")
+data$hd<-as.factor(data$hd)
+
+str(data)
+
+#how many samples (rows of data) have NA values.
+nrow(data[is.na(data$ca)| is.na(data$thal),])
+
+#We can view the samples with NAs by slecting those rows from the data.frame
+data[is.na(data$ca)| is.na(data$thal),]
+
+#If we wanted to, we could impute values for the NAs using a Random Forest or some method.
+#However, for this example, we'll just rempve these samples.
+nrow(data)
+data <- data[!(is.na(data$ca)| is.na(data$thal)),]
+nrow(data)
+
+#Now we need to make sure that healthy and diseased samples come from each gender (female and male).
+#If onle male samples have heart disease, we should probably remove all females from the model.
+#We do this with xtabs() function.
+xtabs(~ hd+sex , data=data)
+#we pass xtabs() the data
+# and use "model syntax" to select columns in the data we want to build a table from.
+
+# let's verify that all 4 levels of Chest Pain (cp) were reported by a bunch of patients
+xtabs(~ hd+cp , data=data)
+
+#we do the samething for all of the boolean and categorical variables that we are using to predictheart disease.
+xtabs(~ hd+fbs , data=data)
+xtabs(~ hd+restecg , data=data)
+#here's something that could cause trouble for the "Resting Electrocardiographic results" (restecg)
+#only 4 patients represent level1. This could, potentially, get in the way of finding the best fitting line.
+#however, for now we'll just leave it in and see what happens.
+
+#and then we just keep looking at the remaining variables to make sure that they are all represented by a number of patients.
+xtabs(~ hd+slope , data=data)
+xtabs(~ hd+ca , data=data)
+xtabs(~ hd+thal , data=data)
+
+#we will try to predict heart disease using only the gender of each patient.
+logistic <- glm(hd ~ sex, data=data, family="binomial")
+#here's our call to glm(), the function that perfoms Generalized Linear Models.
+#first, we use formula syntax to specify that we want to use sex to predict heart disease (hd).
+#then we specifythe data that we are using for the model.
+#lastly, we specify that we want the binomial family of generalized linear models. this makes the glm() function do Logistic Regression, as opposed to some other type of generalized linear mode.
+#we are storing the output from glm() in a variable called "logistic".
+summary(logistic)
+#we use summary() function to get details about the logistic regression.
+#
+#
+#Call:
+#glm(formula = hd ~ sex, family = "binomial", data = data)
+#
+#the first line has the original cal to the glm() function.
+#
+#
+#Coefficients:
+#  Estimate Std. Error z value Pr(>|z|)    
+#(Intercept)  -1.0438     0.2326  -4.488 7.18e-06 ***
+#  sexM          1.2737     0.2725   4.674 2.95e-06 ***
+#  ---
+#  Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+#
+#The coefficients correspond to the following model:
+#heart disease = -1.0438 + 1.2737*the patient is male
+#The variable, the patient is male, is equal to 0 when the paient is female and 1 when the patient is male.
+#Thus, if we predict heart disease for a female patient, we get the following equation:
+#heart disease = -1.0438 + 1.2737*0 = -1.0438
+# Thus, the log(odds) that a female has heart disease = -1.0438
+#If we are predicting heart disease for a male patient, we get the following equation:
+#heart disease = -1.0438 + 1.2737*1 = -1.0438 + 1.2737
+#Since this first term is the log(odds) of a female having heart disease (-1.0438)
+#the second term is the log(odds ratio) of the odds that a male will have heart disease over the odds that a female will have heart disease.
+#
+#Std. Error & z value shows how the Wald's test was computed for both coefficients.
+#Pr(>|z|) is p-value
+#Both p-values are well bellow 0.05, and thus, the log(odds) and the log(odds ratios) are both statically significant.
+#a small p-value alone isn't interesting, we also want large effect size, and that's what the log(odds) and log(odds ratios) tells us.
+#
+#
+#(Dispersion parameter for binomial family taken to be 1)
+#Null deviance: 409.95  on 296  degrees of freedom
+#Residual deviance: 386.12  on 295  degrees of freedom
+#
+#When we do "normal" linear regression, we estimated both the mean and the variance from the data.
+#In contrast, with logistic regression, we estimate the mean of the data, and the variance is derived from the mean.
+#Since we are not estimationg the varince from the data (and, instead, just deriving it from the mean), it is possible that the varince is underestimated.
+#If so, you can adjust the dispersion parameter in the summary() command.
+#Then we have the Null Deviance and the Residual Deviance.
+#These can be used to compare models, compute R2 and an overall p-value.
+#
+#
+#AIC: 390.12
+#
+#Then  we have AIC, the Akaike Information Criterion, which, in this context, is just the Residual Deviance adjusted for the number of parameters in the model.
+#The AIC can be used to compare one model to another
+#
+#
+#Number of Fisher Scoring iterations: 4
+#Fisher Scoring iterations, which just tells us how quickly the glm() function converged on the maximum likelihood estimates for the coefficients.
+
+logistic <- glm(hd ~ . , data=data, family="binomial")
+#This formula syntax hd ~ ., means that we want to model heart disease (hd) using all of the remaining variable in our data.frame called "data".
+summary(logistic)
+
+ll.null <- logistic$null.deviance/-2
+#If we want to calculate McFedden's Pseudo r2, 
+#we can pull the log-likelihood of the null model out of logistic variable by getting the value for the null deviance and dividing by -2
+
+ll.proposed <- logistic$deviance/-2
+#and we can pu;; the log-likelihood for the fancy model out of logistic variable by getting the value for the residual deviance and dividing by -2.
+
+(ll.null - ll.proposed)/ll.null
+#[1] 0.5533531
+#Then we just can do the math and we end up with apseudo R2=0.55. 
+#This can be interpreted as the overall effect size.
+
+1 - pchisq(2*(ll.proposed - ll.null), df= (length(logistic$coefficients)-1))
+[1] 0
+#And we can use those some log-likelihoods tocalculate a p-value for the R2 using a Chi-Square distribution.
+#In this case, the p-value is tiny, so r2 value isn't due to bumb luck.
+
+predicted.data <-  data.frame( probability.of.hd=logistic$fitted.values , hd=data$hd)
+#To draw a graph, we start by creating a new data.frame that contains  the probabilities of having heart disease along with the actual heart disease status.
+
+predicted.data <- predicted.data[order(predicted.data$probability.of.hd , decreasing= FALSE),]
+#Then we sort the data.frame from the low probabilities to high probabilities
+
+predicted.data$rank <- 1:nrow(predicted.data)
+#Then we add a new column to the data.frame that has the rank of each sample, from low probability to high probability.
+
+library(ggplot2)
+
+install.packages("complot")
+library(complot)
+
+ggplot(data=predicted.data, aes(x=rank, y=probability.of.hd)) +
+  geom_point(aes(color=hd), alpha=1, shape=4, stroke=2) +
+  xlab("Index") +
+  ylab("Predicted probability of getting heart disease")
+#Most of the patients with heart disease (the ones in turquoise), are predicted to have a high probability of having heart disease.
+#And most of the patient without heart disease (the ones in salmon), are predicted to have a low probability of having heart disease.
+#Thus our logistic regression has done a very good job.
+#However we could use cross validation to get a better idea of how well it might perform with new data.
+
+ggsave("heart_disease_probabilities.pdf")
+#we call ggsave() to save the graph as a PDF.
